@@ -1,186 +1,246 @@
-# SoroPool
+# SoroPool - Constant Product AMM on Soroban
 
-> **Constant-product AMM on Soroban — two-token liquidity pool with a 0.3% swap fee.**
+[![Stellar](https://img.shields.io/badge/Stellar-Soroban-blue)](https://soroban.stellar.org)
+[![Rust](https://img.shields.io/badge/Rust-1.89+-orange)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-A Soroban smart contract implementing a minimal constant-product automated market maker. Liquidity providers deposit token pairs and receive shares representing their proportional claim. Traders swap against the pool at algorithmically derived prices with slippage protection built in.
+> **A minimal constant-product automated market maker (AMM) for Stellar's Soroban smart contract platform**
 
----
+SoroPool implements a decentralized exchange liquidity pool with a 0.3% swap fee, enabling permissionless token trading on Stellar. Built as a single Soroban contract, it provides the foundational DeFi primitive missing from Stellar's native order-book DEX.
 
-## Hackathon Info
+## 🚀 Features
 
-| Field | Details |
-|---|---|
-| **Track** | DeFi / Finance |
-| **Chain** | Stellar (Soroban) |
-| **Target users** | Liquidity providers, DeFi traders, protocol developers |
-| **Status** | Hackathon MVP |
+- **Constant Product AMM**: Implements the `x * y = k` invariant
+- **0.3% Swap Fee**: Industry-standard fee structure
+- **Liquidity Shares**: Mint/burn transferable LP tokens
+- **Slippage Protection**: Configurable minimum output amounts
+- **Permissionless**: No admin keys or centralized control
+- **SEP-0041 Compatible**: Works with any Soroban token standard
 
----
+## 📊 How It Works
 
-## Problem
-
-Stellar's native DEX is order-book based — there is no on-chain AMM primitive for developers to build DeFi protocols on top of. Teams that want programmable liquidity, composable swaps, or LP share tokens have no reusable starting point in the Soroban ecosystem.
-
----
-
-## Solution
-
-**SoroPool** is a self-contained constant-product AMM deployed as a single Soroban contract. It accepts two SEP-0041 tokens, maintains on-chain reserves, and issues transferable liquidity shares. Any address can provide liquidity, swap tokens, or withdraw their position — all enforced on-chain with no admin key.
-
----
-
-### Pool mechanics
-
-The pool enforces the constant-product invariant across every swap:
-
+### Pool Mechanics
+The pool maintains two token reserves (`reserve_a`, `reserve_b`) that must satisfy:
 ```
-reserve_a * reserve_b = k  (constant)
+reserve_a × reserve_b = k  (constant)
 ```
 
-The 0.3% fee is applied by using only 99.7% of the input amount in the invariant calculation:
-
+### Swapping
+When swapping tokens, the contract calculates the required input amount using:
 ```
-effective_input = input_amount * 997 / 1000
-```
+// Buying token_a (selling token_b)
+sell_amount = (reserve_b × out × 1000) / ((reserve_a - out) × 997) + 1
 
-Liquidity shares are minted proportionally on deposit and burned on withdrawal, giving each LP a claim on the pool's reserves at all times.
-
----
-
-## Contract API
-
-### Entry points
-
-| Function | Access | Description |
-|---|---|---|
-| `__constructor(token_a, token_b)` | Deploy-time | Initializes pool; panics if `token_a >= token_b` |
-| `deposit(to, desired_a, min_a, desired_b, min_b)` | Any LP | Deposits tokens, mints proportional shares |
-| `swap(to, buy_a, out, in_max)` | Any trader | Swaps tokens using constant-product invariant |
-| `withdraw(to, share_amount, min_a, min_b)` | Share holder | Burns shares, returns proportional token amounts |
-| `balance_shares(user)` | Public | Returns LP share balance for an address |
-| `get_rsrvs()` | Public | Returns current `(reserve_a, reserve_b)` |
-
-### Swap formula
-
-```
-// buying token_a (sell token_b)
-sell_amount = (reserve_b * out * 1000) / ((reserve_a - out) * 997) + 1
-
-// buying token_b (sell token_a)
-sell_amount = (reserve_a * out * 1000) / ((reserve_b - out) * 997) + 1
+// Buying token_b (selling token_a)
+sell_amount = (reserve_a × out × 1000) / ((reserve_b - out) × 997) + 1
 ```
 
-The trade reverts if `sell_amount > in_max`.
+The 0.3% fee is applied by using only 99.7% of the input in the calculation.
 
-### Token ordering
+### Liquidity Provision
+- Deposit equal values of both tokens (first deposit sets ratio)
+- Receive LP shares proportional to your contribution
+- Withdraw anytime by burning shares
 
-The constructor enforces `token_a < token_b` by address comparison. Deploying out of order will panic.
+## 🛠 Setup & Installation
 
----
+### Prerequisites
+- [Rust](https://rust-lang.org) 1.89+
+- [Stellar CLI](https://soroban.stellar.org/docs/getting-started/setup) (Soroban tools)
+- Funded Stellar testnet account
 
-## Tech Stack
+### 1. Install Stellar CLI
+```bash
+# Install via cargo
+cargo install stellar-cli
 
-| Layer | Technology |
-|---|---|
-| **Core contract** | Rust (Soroban) — AMM logic, share minting, reserve tracking |
-| **Token interface** | SEP-0041 compatible (any two Soroban tokens) |
-| **Auth** | Soroban native authorization per depositor, swapper, withdrawer |
-| **Frontend** | React + Stellar Wallets Kit — swap UI, LP dashboard, reserve display |
-
----
-
-## Why Stellar / Soroban?
-
-- **Atomic token transfers** — deposit, swap, and withdraw settle in a single transaction
-- **SEP-0041 token standard** — any Soroban token pair works without modification
-- **No admin key** — pool is fully permissionless after deployment
----
-
-## Deployment
-
-The SoroPool contract has been deployed on the Stellar testnet for demonstration purposes.
-
-### Testnet Deployment
-- **Contract ID**: `CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35`
-- **Network**: Stellar Testnet
-- **Token A**: `CCF7V7MZ7VA3HOKSWP34VG26XZZ7I2D7Q4YY5CS6SLBWH3WM6MIERELD` (TESTB asset)
-- **Token B**: `CC2S7GFRQYHNPITBRWYJ6AJKE76Y2RED6O3SA3UY673GOJYEYOH5YLW7` (TESTA asset)
-
-### Contract Links
-- **Stellar Expert**: https://stellar.expert/explorer/testnet/contract/CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35
-- **Stellar Lab**: https://lab.stellar.org/r/testnet/contract/CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35
-- **Deployment Transaction**: https://stellar.expert/explorer/testnet/tx/48c360a268233549f4ddca23c814eb48f88b9527c67fcc4044406a08d7d1318c
-
----
-
-## Project Structure
-
-```
-soroban-liquidity-pool/
-├── src/
-│   ├── lib.rs       # Contract implementation
-│   └── test.rs      # Unit tests (Soroban testutils)
-├── Cargo.toml
-└── README.md
+# Or download from releases
+# https://github.com/stellar/stellar-cli/releases
 ```
 
----
+### 2. Setup Rust Target
+```bash
+rustup target add wasm32v1-none
+```
 
-## Develop
+### 3. Clone & Build
+```bash
+git clone https://github.com/adrianrana10-cmyk/soroban-liquidity-master.git
+cd soroban-liquidity-master
 
-Run tests:
+# Build the contract
+stellar contract build
+```
 
+### 4. Run Tests
 ```bash
 cargo test
 ```
 
-Build (WASM):
+## 🚀 Deployment
 
+### Testnet Deployment
+The contract is already deployed on Stellar testnet:
+
+- **Contract ID**: `CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35`
+- **Network**: Testnet
+- **Token A**: `CCF7V7MZ7VA3HOKSWP34VG26XZZ7I2D7Q4YY5CS6SLBWH3WM6MIERELD` (TESTB)
+- **Token B**: `CC2S7GFRQYHNPITBRWYJ6AJKE76Y2RED6O3SA3UY673GOJYEYOH5YLW7` (TESTA)
+
+### Deploy Your Own Instance
+
+#### 1. Configure Network
 ```bash
-cargo build --release --target wasm32-unknown-unknown
+# Add testnet
+stellar network add --global testnet \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015"
 ```
 
----
+#### 2. Create/Fund Account
+```bash
+# Generate new identity
+stellar keys generate my-account
 
-## Hackathon MVP Checklist
+# Fund with testnet XLM
+# Visit: https://faucet.stellar.org/
+# Enter your address: stellar keys address my-account
+```
 
-- [ ] `deposit`, `swap`, and `withdraw` entry points with slippage protection
-- [ ] Constant-product invariant with 0.3% fee applied correctly
-- [ ] LP share minting and burning proportional to reserves
-- [ ] Token ordering enforced at deployment
-- [ ] LP dashboard: deposit tokens, view share balance, withdraw position
-- [ ] Swap UI: select direction, input amount, preview output, execute
-- [ ] Live demo: two-token pool on Stellar Testnet with real reserve tracking
+#### 3. Deploy Token Contracts
+```bash
+# Deploy token A
+stellar contract asset deploy \
+  --asset MYTOKENA:$(stellar keys address my-account) \
+  --source my-account \
+  --network testnet
 
----
+# Deploy token B
+stellar contract asset deploy \
+  --asset MYTOKENB:$(stellar keys address my-account) \
+  --source my-account \
+  --network testnet
+```
 
-## Differentiators
+#### 4. Deploy AMM Contract
+```bash
+# Note: Ensure token_a < token_b lexicographically
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/soroban_liquidity_pool_contract.wasm \
+  --source my-account \
+  --network testnet \
+  -- --token_a <TOKEN_A_ADDRESS> --token_b <TOKEN_B_ADDRESS>
+```
 
-| Feature | SoroPool | Order-book DEX |
-|---|---|---|
-| Continuous liquidity | Yes — always a price | No — requires matching orders |
-| LP participation | Yes — any address | No |
-| Programmatic price | Yes — x * y = k | No — order-driven |
-| Slippage protection | Built-in `in_max` / `min` checks | Manual |
-| Admin required | None post-deploy | Varies |
-| Composable shares | Yes — transferable LP tokens | No |
+## 📖 Usage
 
----
+### Contract Interface
 
-## Roadmap (Post-Hackathon)
+| Function | Parameters | Description |
+|----------|------------|-------------|
+| `deposit` | `to, desired_a, min_a, desired_b, min_b` | Add liquidity, mint LP shares |
+| `swap` | `to, buy_a, out, in_max` | Swap tokens (buy_a=true for token_a) |
+| `withdraw` | `to, share_amount, min_a, min_b` | Remove liquidity, burn shares |
+| `balance_shares` | `user` | Get LP share balance |
+| `get_rsrvs` | - | Get current reserves |
 
-- **V2 — Configurable fee** — fee tier set at deployment, allowing pools with 0.05%, 0.3%, or 1% fee
-- **V3 — Multi-hop routing** — chain multiple SoroPool instances for token pairs without a direct pool
-- **V4 — Concentrated liquidity** — LPs specify price ranges, improving capital efficiency over full-range AMM
+### Example Interactions
 
----
+#### Check Reserves
+```bash
+stellar contract invoke \
+  --id CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35 \
+  --source my-account \
+  --network testnet \
+  -- get_rsrvs
+```
 
-## Contributing
+#### Mint Tokens (for testing)
+```bash
+# Mint token A to your account
+stellar contract invoke \
+  --id <TOKEN_A_CONTRACT> \
+  --source my-account \
+  --network testnet \
+  -- mint --to $(stellar keys address my-account) --amount 1000000000
+```
 
-This repo is a hackathon starting point. PRs, issues, and ideas welcome.
+#### Add Liquidity
+```bash
+stellar contract invoke \
+  --id CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35 \
+  --source my-account \
+  --network testnet \
+  -- deposit \
+  --to $(stellar keys address my-account) \
+  --desired_a 1000000000 \
+  --min_a 1000000000 \
+  --desired_b 1000000000 \
+  --min_b 1000000000
+```
 
----
+#### Swap Tokens
+```bash
+# Swap 100 token_b for token_a
+stellar contract invoke \
+  --id CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35 \
+  --source my-account \
+  --network testnet \
+  -- swap \
+  --to $(stellar keys address my-account) \
+  --buy_a true \
+  --out 100000000 \
+  --in_max 200000000
+```
 
-## License
+## 🔍 Contract Architecture
 
-MIT
+### Storage Keys
+- `TokenA`: Address of first token
+- `TokenB`: Address of second token
+- `TotalShares`: Total LP shares minted
+- `ReserveA`: Current reserve of token A
+- `ReserveB`: Current reserve of token B
+- `Shares(user)`: LP shares per user
+
+### Security Features
+- **Authorization**: All state-changing functions require user auth
+- **Slippage Protection**: Minimum output amounts prevent sandwich attacks
+- **Overflow Protection**: Uses checked arithmetic
+- **Token Ordering**: Enforces `token_a < token_b` to prevent duplicates
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+cargo test
+```
+
+Tests cover:
+- Basic deposit/withdraw functionality
+- Swap calculations
+- Edge cases (zero amounts, insufficient shares)
+- Authorization requirements
+
+## 🌐 Links
+
+- **Live Contract**: https://stellar.expert/explorer/testnet/contract/CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35
+- **Stellar Lab**: https://lab.stellar.org/r/testnet/contract/CCZZYGWWFQXYVBFLQNIFDUYOA7TTV2IMSOFEQIEF2V63HXQHUAXCBP35
+- **Soroban Docs**: https://soroban.stellar.org/docs
+- **Stellar Developer**: https://developers.stellar.org
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## ⚠️ Disclaimer
+
+This is experimental software for educational and testing purposes. Use at your own risk. The contract has not been audited for production use.
