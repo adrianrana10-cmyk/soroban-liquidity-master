@@ -1,0 +1,14 @@
+# Rust / Soroban build artifacts
+/target/
+
+# Compiled contracts / artifacts (Soroban can generate these depending on tooling)
+*.wasm
+*.contract
+
+# Local config / credentials
+.env
+
+# Misc
+.DS_Store
+coverage/
+
